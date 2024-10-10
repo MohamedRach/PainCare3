@@ -15,21 +15,6 @@ pipeline {
             }
         }
 
-        stage('Build and Run Services') {
-            steps {
-                script {
-                    // Check if the container already exists
-                    def containerExists = sh(returnStatus: true, script: 'docker ps -a -q -f name=jee-app-tomcat')
-                    if (containerExists == 0) {
-                        echo "Container 'jee-app-tomcat' already exists, skipping creation."
-                    } else {
-                        echo "Creating and running the 'jee-app-tomcat' container."
-                        sh 'docker-compose up -d --build'  // Build and run MySQL and app containers
-                    }
-                }
-            }
-        }
-
         stage('Run Tests') {
             steps {
                 sh 'mvn test'
@@ -54,13 +39,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Check if Docker image exists
-                    def imageExists = sh(returnStatus: true, script: 'docker images -q jee-app-tomcat')
-                    if (imageExists == 0) {
+                    // Check if Docker image exists by ensuring non-empty result
+                    def imageExists = sh(script: 'docker images -q jee-app-tomcat', returnStdout: true).trim()
+                    if (imageExists) {
                         echo "Docker image 'jee-app-tomcat' already exists, skipping build."
                     } else {
                         echo "Building Docker image 'jee-app-tomcat'."
-                        docker.build('jee-app-tomcat')
+                        sh 'docker build -t jee-app-tomcat .'
                     }
                 }
             }
@@ -69,13 +54,19 @@ pipeline {
         stage('Run Docker Container') {
             steps {
                 script {
-                    // Check if the container is running
-                    def containerRunning = sh(returnStatus: true, script: 'docker ps -q -f name=jee-app-tomcat')
-                    if (containerRunning == 0) {
-                        echo "Container 'jee-app-tomcat' already running."
+                    // Check if the container is running by ensuring non-empty result
+                    def containerRunning = sh(script: 'docker ps -q -f name=jee-app-tomcat', returnStdout: true).trim()
+                    if (containerRunning) {
+                        echo "Container 'jee-app-tomcat' is already running."
                     } else {
+                        // Check if container exists but is stopped, and remove it if so
+                        def containerExists = sh(script: 'docker ps -a -q -f name=jee-app-tomcat', returnStdout: true).trim()
+                        if (containerExists) {
+                            echo "Removing existing stopped container 'jee-app-tomcat'."
+                            sh 'docker rm jee-app-tomcat'
+                        }
                         echo "Running Docker container 'jee-app-tomcat'."
-                        docker.image('jee-app-tomcat').run('-p 9091:9090')
+                        sh 'docker run -d --name jee-app-tomcat -p 9091:9090 jee-app-tomcat'
                     }
                 }
             }
