@@ -1,24 +1,17 @@
 pipeline {
     agent any
     environment {
-        // Ensure Docker and Maven paths are properly set
-        PATH = "C:\\WINDOWS\\SYSTEM32;C:\\Program Files\\Docker\\Docker\\resources\\bin"
+        // Ensure Docker and Maven paths are properly set for Linux
+        PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     }
     tools {
         maven 'Maven' // Ensure Maven is installed in Jenkins
     }
     stages {
-        stage('Checkout') {
-            steps {
-                // Specify the branch 'master'
-                git branch: 'master', url: 'https://github.com/SihamOubalaout/PainCare3.git'
-            }
-        }
-
         stage('Build') {
             steps {
                 // Run Maven build to create the WAR file
-                bat 'mvn clean package'
+                sh 'mvn clean package'
             }
         }
 
@@ -26,12 +19,12 @@ pipeline {
             steps {
                 script {
                     // Check if the container already exists
-                    def containerExists = bat(returnStatus: true, script: 'docker ps -a -q -f name=jee-app-tomcat')
+                    def containerExists = sh(returnStatus: true, script: 'docker ps -a -q -f name=jee-app-tomcat')
                     if (containerExists == 0) {
                         echo "Container 'jee-app-tomcat' already exists, skipping creation."
                     } else {
                         echo "Creating and running the 'jee-app-tomcat' container."
-                        bat 'docker-compose up -d --build'  // Build and run MySQL and app containers
+                        sh 'docker-compose up -d --build'  // Build and run MySQL and app containers
                     }
                 }
             }
@@ -39,13 +32,13 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                bat 'mvn test'
+                sh 'mvn test'
             }
 
             post {
                 always {
                     // Archive the test results
-                    junit '/target/surefire-reports/*.xml'
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
@@ -53,7 +46,7 @@ pipeline {
         stage('Teardown') {
             steps {
                 script {
-                    bat 'docker-compose down'  // Stop and remove containers
+                    sh 'docker-compose down'  // Stop and remove containers
                 }
             }
         }
@@ -62,7 +55,7 @@ pipeline {
             steps {
                 script {
                     // Check if Docker image exists
-                    def imageExists = bat(returnStatus: true, script: 'docker images -q jee-app-tomcat')
+                    def imageExists = sh(returnStatus: true, script: 'docker images -q jee-app-tomcat')
                     if (imageExists == 0) {
                         echo "Docker image 'jee-app-tomcat' already exists, skipping build."
                     } else {
@@ -77,7 +70,7 @@ pipeline {
             steps {
                 script {
                     // Check if the container is running
-                    def containerRunning = bat(returnStatus: true, script: 'docker ps -q -f name=jee-app-tomcat')
+                    def containerRunning = sh(returnStatus: true, script: 'docker ps -q -f name=jee-app-tomcat')
                     if (containerRunning == 0) {
                         echo "Container 'jee-app-tomcat' already running."
                     } else {
@@ -88,7 +81,7 @@ pipeline {
             }
         }
 
-       stage('Deploy') {
+        stage('Deploy') {
             steps {
                 script {
                     // Assign the custom URL inside a script block
